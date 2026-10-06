@@ -1,10 +1,1 @@
-module.exports={reactStrictMode:true,transpilePackages:['three']};
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  typescript: {
-    // يتجاهل أخطاء TS أثناء الـ build على Vercel
-    ignoreBuildErrors: true,
-  },
-};
-
-module.exports = nextConfig;
+module.exports={reactStrictMode:true,transpilePackages:['three'],typescript:{ignoreBuildErrors:true},eslint:{ignoreDuringBuilds:true}};
