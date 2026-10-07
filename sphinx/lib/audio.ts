@@ -3,7 +3,6 @@ import { useGame } from './store';
 
 let ctx: AudioContext | null = null, master: GainNode, bgm: GainNode, sfx: GainNode, started = false;
 const buf: Record<string, AudioBuffer | null> = {};
-const activeSources: Record<string, { source: AudioBufferSourceNode; gain: GainNode } | null> = {};
 
 export function unlockAudio() {
   if (!ctx) {
@@ -44,7 +43,7 @@ async function file(n: string) {
   return buf[n];
 }
 
-// تشغيل صوت عابر (مرة واحدة ولا يتوقف إلا بنهايته مثل الباب والورقة)
+// تشغيل صوت سريع (مرة واحدة عند استدعائه مثل الخطوة، الباب، الورقة)
 function playOneShot(n: string, vol: number, fb: (v: number) => void) {
   if (!ctx) return;
   file(n).then(b => {
@@ -55,42 +54,6 @@ function playOneShot(n: string, vol: number, fb: (v: number) => void) {
       s.connect(g).connect(sfx);
       s.start();
     } else fb(vol);
-  });
-}
-
-// تشغيل أو إيقاف صوت متكرر فورياً (مثل المشي والجري والتنفس)
-function playToggle(n: string, vol: number, active: boolean, fbLoop: () => void, loop = true) {
-  if (!ctx) return;
-
-  if (!active) {
-    if (activeSources[n]) {
-      try {
-        activeSources[n]?.source.stop();
-        activeSources[n]?.source.disconnect();
-      } catch {}
-      activeSources[n] = null;
-    }
-    return;
-  }
-
-  if (activeSources[n]) return; // يعمل مسبقاً
-
-  file(n).then(b => {
-    if (!active) return; // تراجع اللاعب أثناء التحميل
-    if (b && ctx) {
-      const s = ctx.createBufferSource(), g = ctx.createGain();
-      g.gain.value = vol;
-      s.buffer = b;
-      s.loop = loop;
-      s.connect(g).connect(sfx);
-      s.start();
-      activeSources[n] = { source: s, gain: g };
-      s.onended = () => {
-        if (activeSources[n]?.source === s) activeSources[n] = null;
-      };
-    } else {
-      fbLoop();
-    }
   });
 }
 
@@ -125,34 +88,32 @@ function ambient() {
   });
 }
 
-// الأنوام والتحكم بالحركة مع إيقاف فوري عند التوقف (v > 0 تعني يتحرك، v === 0 تعني توقف)
+// دوال الأصوات الأساسية (تشتغل فوراً عند استدعائها في الكود)
 
-export const step = (v: number) => {
-  playToggle('walk', v * .4, v > 0, () => {
-    // Synth fallback للمشي إذا لم يوجد ملف
-  });
-};
+export const step = (v: number) => playOneShot('walk', v * .5, v => {
+  if (v <= 0) return;
+  const c = ctx!, b = c.createBuffer(1, 2205, 44100), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+  const s = c.createBufferSource(), g = c.createGain();
+  g.gain.value = v * .4;
+  s.buffer = b;
+  s.connect(g).connect(sfx);
+  s.start();
+});
 
-export const run = (v: number) => {
-  playToggle('run', v * .6, v > 0, () => {
-    step(v);
-  });
-};
+export const run = (v: number) => playOneShot('run', v * .7, v => step(v));
 
-export const breath = (v: number) => {
-  playToggle('breath', v * .2, v > 0, () => {
-    if (!ctx) return;
-    const c = ctx, o = c.createOscillator(), g = c.createGain();
-    o.type = 'sawtooth';
-    o.frequency.value = 90;
-    g.gain.value = v * .08;
-    o.connect(g).connect(sfx);
-    o.start();
-    o.stop(c.currentTime + .5);
-  });
-};
+export const breath = (v = .5) => playOneShot('breath', v, () => {
+  if (!ctx) return;
+  const c = ctx, o = c.createOscillator(), g = c.createGain();
+  o.type = 'sawtooth';
+  o.frequency.value = 90;
+  g.gain.value = v * .08;
+  o.connect(g).connect(sfx);
+  o.start();
+  o.stop(c.currentTime + .5);
+});
 
-// أصوات التفاعل السريعة (تشتغل لمرة واحدة فوراً)
 export const paper = (v = .6) => playOneShot('paper', v, () => click());
 
 export const doorMetal = (v = .7) => playOneShot('door_metal', v, () => click());
@@ -197,4 +158,4 @@ export const click = () => {
   o.connect(g).connect(sfx);
   o.start();
   o.stop(c.currentTime + .1);
-};
+});
