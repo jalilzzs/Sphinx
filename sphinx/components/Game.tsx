@@ -46,14 +46,18 @@ export default function Game(){
     document.documentElement.lang = lang;
   }, [lang, ar]);
 
+  // دالة الدخول للمرحلة دون توقيت وهمي
   const enter = (nextScene: string, then: 'game' | 'cutscene' = 'game') => {
-    useGame.setState({ err: '', phoneOpen: false, invOpen: false, prompt: '' });
+    useGame.setState({ 
+      err: '', 
+      phoneOpen: false, 
+      invOpen: false, 
+      prompt: '',
+      screen: 'loading', 
+      scene: nextScene,
+      targetScreen: then 
+    });
     setHint(Math.floor(Math.random() * 3));
-    useGame.setState({ screen: 'loading', scene: nextScene });
-    setTimeout(() => {
-      useGame.setState({ screen: then });
-      autosave();
-    }, 2600);
   };
 
   useEffect(() => {
@@ -110,10 +114,9 @@ export default function Game(){
               <circle cx="90" cy="44" r="3" fill="#c9a45c" />
             </svg>
             <p className="font-display text-3xl text-gold">{ar ? lore.ar : lore.en}</p>
-            <div className="h-px bg-white/10 mt-8"><i className="block h-full bg-gold animate-[w_2.6s_linear]" style={{ width: '100%' }} /></div>
+            <div className="h-px bg-white/10 mt-8"><i className="block h-full bg-gold animate-[w_1.5s_infinite]" style={{ width: '100%' }} /></div>
             <p className="mt-5 italic text-white/50">{t('hint')[hint]}</p>
           </div>
-          <style>{`@keyframes w{from{width:0}}`}</style>
         </div>
       )}
       {screen === 'game' && <Hud />}
