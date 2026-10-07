@@ -1,0 +1,20 @@
+import { world } from './world';
+import { useGame } from './store';
+import { PUZ } from './puzzles';
+import { placeOf } from './place';
+import { autosave } from './saves';
+import * as THREE from 'three';
+export type Photo={d:string;t:string;scene:string};
+export let PHOTOS:Photo[]=[];
+export const loadPhotos=()=>{try{PHOTOS=JSON.parse(localStorage.getItem('sphinx_photos')||'[]')}catch{PHOTOS=[]}};
+const persist=()=>{for(let i=0;i<8;i++){try{localStorage.setItem('sphinx_photos',JSON.stringify(PHOTOS));return}catch{PHOTOS.shift()}}};
+export const deletePhoto=(i:number)=>{PHOTOS.splice(i,1);persist()};
+export const clock=()=>{const m=21*60+47+Math.floor((Date.now()-world.t0)/20000);return Math.floor(m/60)%24+':'+String(m%60).padStart(2,'0')};
+export function takePhoto(){const {gl,scene,cam}=world;if(!gl||!cam)return;const s=useGame.getState();
+  gl.render(scene,cam);const src=gl.domElement,w=480,h=Math.max(1,Math.round(w*src.height/src.width)),cv=document.createElement('canvas');cv.width=w;cv.height=h;
+  const g=cv.getContext('2d')!;g.drawImage(src,0,0,w,h);g.fillStyle='rgba(0,0,0,.5)';g.fillRect(0,h-22,w,22);g.fillStyle='#e8dccc';g.font='12px monospace';g.fillText(clock()+'  '+s.scene,8,h-7);
+  PHOTOS.push({d:cv.toDataURL('image/jpeg',.6),t:clock(),scene:s.scene});if(PHOTOS.length>12)PHOTOS.shift();persist();
+  const d=new THREE.Vector3();cam.getWorldDirection(d);const ar=s.lang==='ar';
+  const hit=(PUZ[s.scene]||[]).find(p=>{if(!p.photo)return false;const v=placeOf(s.scene,p).sub(cam.position);return v.length()<8&&v.normalize().dot(d)>.8});
+  if(hit){s.set({flags:{...s.flags,['ph_'+hit.id]:true}});s.unlock('ach_photo2');s.say(ar?hit.txtAr!:hit.txtEn!);autosave()}else s.say(ar?'تم التقاط الصورة.':'Photo taken.');
+}
