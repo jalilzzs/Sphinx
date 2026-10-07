@@ -1,6 +1,7 @@
 'use client';
 import { Component, Suspense, useEffect } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
+import { useProgress } from '@react-three/drei';
 import * as PP from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -18,6 +19,24 @@ class Boundary extends Component<{ children: any }, { e: boolean }> {
   static getDerivedStateFromError() { return { e: true }; }
   componentDidCatch(e: any) { useGame.setState({ err: String(e?.message || e) }); }
   render() { return this.state.e ? null : this.props.children; }
+}
+
+// مكون مراقبة التحميل الفعلي للموديلات والبيئة
+function LoaderSync() {
+  const { active, progress } = useProgress();
+
+  useEffect(() => {
+    // التحويل التلقائي فور اكتمال تحميل ملفات الـ 3D بنسبة 100%
+    if (!active && progress === 100) {
+      const s = useGame.getState();
+      if (s.screen === 'loading') {
+        const targetScreen = (s as any).targetScreen || 'cutscene';
+        useGame.setState({ screen: targetScreen });
+      }
+    }
+  }, [active, progress]);
+
+  return null;
 }
 
 // إضاءة المشهد العامة مع إمكانية تعديل السطوع (Exposure)
@@ -54,7 +73,7 @@ function Limiter({ fps }: { fps: number }) {
 
 export default function GameCanvas() {
   const { scene, quality, screen, res, fps, shadows, aa, post } = useGame();
-  const def = SCENES[scene];
+  const def = SCENES[scene] || { fog: ['#0c0b0e', 0.05], ambient: 0.2 };
   const dpr = Math.max(0.4, Math.min(typeof devicePixelRatio === 'number' ? devicePixelRatio : 1, 2) * res);
 
   return (
@@ -73,6 +92,9 @@ export default function GameCanvas() {
       <Boundary>
         <Mood ambient={def.ambient} />
         <Suspense fallback={null}>
+          {/* مزامن التحميل الحقيقي */}
+          <LoaderSync />
+
           {/* مجسم الغرفة 3D ينعرض دائماً في الخلفية للكاتسين وللعب */}
           <SceneModel key={scene} id={scene} />
 
