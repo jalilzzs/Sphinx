@@ -17,7 +17,7 @@ export default function Game(){
     const apply=(u:any)=>g.set({user:u?{id:u.id,name:u.user_metadata?.full_name||u.email?.split('@')[0]||'Player',avatar:u.user_metadata?.avatar_url}:null});
     supabase.auth.getSession().then(r=>apply(r.data.session?.user));
     const {data}=supabase.auth.onAuthStateChange((_,s)=>apply(s?.user));
-    const unlock=()=>{unlockAudio();applyVol()};addEventListener('pointerdown',unlock);addEventListener('keydown',unlock);   // autoplay policy: resume on first gesture
+    const unlock=()=>{unlockAudio();applyVol()};addEventListener('pointerdown',unlock);addEventListener('keydown',unlock);
     return()=>{data.subscription.unsubscribe();removeEventListener('pointerdown',unlock);removeEventListener('keydown',unlock)}},[]);
   useEffect(()=>{document.documentElement.dir=ar?'rtl':'ltr';document.documentElement.lang=g.lang},[g.lang]);
   const enter=(scene:string,then:'game'|'cutscene'='game')=>{g.set({err:''});setHint(Math.floor(Math.random()*3));g.set({screen:'loading',scene,phoneOpen:false,invOpen:false,prompt:''});setTimeout(()=>{g.set({screen:then});autosave()},2600)};
@@ -30,7 +30,6 @@ export default function Game(){
     {g.screen==='splash'&&<div onClick={()=>g.set({screen:'menu'})} className="fixed inset-0 grid place-items-center text-center cursor-pointer bg-[radial-gradient(ellipse_at_50%_110%,#2b2417,#0c0b0e_65%)]"><div><h1 className="font-display text-[clamp(3.5rem,15vw,9rem)] tracking-[.3em] text-bone">SPHINX</h1><p className="mt-8 text-white/50 animate-pulse">{t('tap')}</p></div></div>}
     {g.screen==='menu'&&<div className="fixed inset-0 grid place-items-center p-4 bg-[radial-gradient(ellipse_at_20%_0,#14262a,#0c0b0e_60%)]"><div className="glass p-6 w-full max-w-sm flex flex-col gap-3">
       <h2 className="font-display text-4xl text-center tracking-widest">SPHINX</h2>
-      {/* هنا تم تعديل البدء ليشغل الكاتسين تلقائياً في الحمام */}
       <button className="btn !border-gold font-bold" onClick={()=>{click();g.set({inventory:[],flags:{},achievements:g.achievements});enter('bathroom_interior','cutscene')}}>{t('start')}</button>
       <button className="btn" onClick={async()=>{click();if(await load())enter(useGame.getState().scene)}}>{t('cont')}</button>
       <button className="btn" onClick={()=>g.set({settingsOpen:true})}>{ar?'الإعدادات':'Settings'}</button>
@@ -40,8 +39,43 @@ export default function Game(){
         <p className="font-display text-3xl text-gold">{ar?lore.ar:lore.en}</p><div className="h-px bg-white/10 mt-8"><i className="block h-full bg-gold animate-[w_2.6s_linear]" style={{width:'100%'}}/></div>
         <p className="mt-5 italic text-white/50">{t('hint')[hint]}</p></div><style>{`@keyframes w{from{width:0}}`}</style></div>}
     {g.screen==='game'&&<Hud/>}
+    {g.screen==='cutscene'&&<Subs/>}
     {g.screen==='end'&&<div className="fixed inset-0 z-50 bg-black grid place-items-center text-center"><div><h2 className="font-display text-4xl">{t('tbc')}</h2><button className="btn mt-8" onClick={()=>g.set({screen:'menu'})}>←</button></div></div>}
     {g.settingsOpen&&<Settings/>}
     {g.err&&<div className="fixed inset-0 z-[90] bg-black/90 grid place-items-center p-6 text-center"><div className="glass p-5 max-w-md"><p className="text-blood font-bold mb-2">{ar?'حدث خطأ':'Something went wrong'}</p><p className="text-xs text-white/60 break-words mb-4">{g.err}</p><button className="btn" onClick={()=>g.set({err:'',screen:'menu'})}>{ar?'العودة':'Back to menu'}</button></div></div>}
     {g.toast&&<div className="fixed top-20 left-1/2 -translate-x-1/2 z-[80] glass !border-gold px-5 py-2">★ {t(g.toast)}</div>}
   </main>}
+
+function Subs(){
+  const t=useT();
+  const ar=useGame(s=>s.lang==='ar');
+  const [i,setI]=useState(-1);
+
+  useEffect(()=>{
+    const a=[
+      setTimeout(()=>setI(0),600),   // النص الأول
+      setTimeout(()=>setI(1),3800),  // النص الثاني
+      setTimeout(()=>setI(2),7000)   // النص الثالث
+    ];
+    return()=>a.forEach(clearTimeout);
+  },[]);
+
+  const skip=()=>useGame.getState().set({screen:'game'});
+
+  return (
+    <div className="fixed inset-0 z-40 pointer-events-none flex flex-col justify-between p-6">
+      <div className="flex justify-end pointer-events-auto">
+        <button onClick={skip} className="bg-black/70 hover:bg-black text-gold border border-gold/50 px-4 py-2 rounded-full text-sm font-bold backdrop-blur-md transition-transform active:scale-95 shadow-lg">
+          {ar?'تخطي ⏩':'Skip ⏩'}
+        </button>
+      </div>
+      <div className="text-center mb-8 px-4">
+        {i>=0&&(
+          <span className="inline-block bg-black/85 text-white border border-white/10 px-6 py-3 rounded-2xl text-base sm:text-lg max-w-xl font-medium shadow-2xl backdrop-blur-md">
+            {t(['s1','s2','s3'][i])}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
