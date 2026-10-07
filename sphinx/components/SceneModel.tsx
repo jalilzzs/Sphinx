@@ -6,9 +6,11 @@ import { SCENES } from '@/lib/scenes';
 import { colliders, world } from '@/lib/world';
 import { LAYOUT } from '@/lib/layout';
 
+// رابط مكتبة فك ضغط Draco للمجسمات
+const DRACO_DECODER = 'https://www.gstatic.com/draco/versioned/decoders/1.5.6/';
+
 function fix(x: any): any {
   if (!x) return x;
-  // تحويل المواد إلى واقعية مع تفعيل التفاعل المباشر مع إضاءة الكشاف بدون إضاءة ذاتية مزيفة
   if (x.isMeshBasicMaterial) {
     const m = new THREE.MeshStandardMaterial({
       map: x.map,
@@ -32,7 +34,6 @@ function fix(x: any): any {
   return x;
 }
 
-// خوارزمية ذكية لمسح المبنى وإيجاد أرضية سفليّة حقيقية تحت السقف
 function findSpawn(box: THREE.Box3, strict: boolean) {
   const c = box.getCenter(new THREE.Vector3());
   const rc = new THREE.Raycaster();
@@ -84,7 +85,9 @@ function findSpawn(box: THREE.Box3, strict: boolean) {
 
 export default function SceneModel({ id }: { id: string }) {
   const def = SCENES[id] || { file: `${id}.glb`, scale: 1 };
-  const { scene } = useGLTF(`/models/${def.file}`);
+  
+  // تمرير DRACO_DECODER لمنع خطأ JSON Parse عند التحميل
+  const { scene } = useGLTF(`/models/${def.file}`, DRACO_DECODER);
   const ref = useRef<THREE.Group>(null!);
 
   useEffect(() => {
