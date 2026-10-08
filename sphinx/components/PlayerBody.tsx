@@ -22,7 +22,6 @@ export function PlayerBody({ modelPath = '/models/player/character.glb' }: Playe
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
         const name = child.name.toLowerCase();
-        // إذا كان اسم الجزء يحتوي على head أو face أو hair
         if (name.includes('head') || name.includes('face') || name.includes('hair') || name.includes('eye')) {
           child.visible = false;
         } else {
@@ -41,9 +40,9 @@ export function PlayerBody({ modelPath = '/models/player/character.glb' }: Playe
     const isRunning = isMoving && s.sprint;
     const isCrouching = s.crouch;
 
-    // 2. ربط موضع الشخصية بقدمي اللاعب تحت الكاميرا مباشرة
+    // 2. ربط موضع الشخصية بقدمي اللاعب تحت الكاميرا مباشرة مع تعديل الارتفاع (رفع الكاميرا لمستوى عيني الشخصية بدقة)
     const camPos = camera.position;
-    const eyeHeight = isCrouching ? 0.9 : 1.65;
+    const eyeHeight = isCrouching ? 1.15 : 1.95; // رفعت الارتفاعات باش الكاميرا تولي بياض و في مستوى العينين الصحيح
     
     groupRef.current.position.set(camPos.x, camPos.y - eyeHeight, camPos.z);
 
@@ -63,7 +62,6 @@ export function PlayerBody({ modelPath = '/models/player/character.glb' }: Playe
       targetAnim = 'Walk';
     }
 
-    // البحث عن الاسم المناسب داخل قائمة أنيميشنات الموديل
     const matchedName = names.find(n => n.toLowerCase().includes(targetAnim.toLowerCase())) || names[0];
 
     if (matchedName && currentAnim.current !== matchedName) {
