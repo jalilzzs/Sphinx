@@ -1,13 +1,19 @@
 // Web Audio manager.
 // - Everything is unlocked by the first user gesture (browser autoplay policy) and ALL mp3 files are decoded up-front, so playback is instant.
-// - walk / run / breath are LOOPS that are started and stopped explicitly (they were long recordings being re-triggered every step, so they piled up and never stopped).
-// - paper / door_metal / door_locked are one-shots. Any missing file falls back to a short synthesized sound.
+// - walk / run / breath are LOOPS that are started and stopped explicitly.
+// - Voiceovers (vo_intro_*, vo_nour_*, vo_salim_*) are integrated directly for cutscenes.
 import { useGame } from './store';
 
 let ctx: AudioContext | null = null, master: GainNode, bgm: GainNode, sfx: GainNode, started = false;
 const buf: Record<string, AudioBuffer> = {};
 const pending: Record<string, Promise<void>> = {};
-const FILES = ['walk', 'run', 'breath', 'paper', 'door_metal', 'door_locked', 'ending', 'cry'];   // ending / cry are optional files: missing -> synth fallback
+
+// All standard audio files + Voiceover dialogue files
+const FILES = [
+  'walk', 'run', 'breath', 'paper', 'door_metal', 'door_locked', 'ending', 'cry',
+  'vo_intro_1', 'vo_intro_2', 'vo_intro_3',
+  'vo_nour_1', 'vo_salim_1', 'vo_nour_2', 'vo_salim_2'
+];
 
 export function unlockAudio() {
   if (typeof window === 'undefined') return;
@@ -36,9 +42,10 @@ export function applyVol() {
 }
 
 const decode = (data: ArrayBuffer) => new Promise<AudioBuffer>((res, rej) => {
-  const p: any = ctx!.decodeAudioData(data, res, rej); // callback form works on old Safari, promise form on new ones
+  const p: any = ctx!.decodeAudioData(data, res, rej);
   p?.catch?.(() => {});
 });
+
 function load(n: string): Promise<void> {
   if (!ctx) return Promise.resolve();
   return pending[n] ??= fetch(`/audio/${n}.mp3`)
@@ -48,10 +55,51 @@ function load(n: string): Promise<void> {
     .catch(e => { if (n !== 'ambient') console.warn('[audio] could not load', n, e); });
 }
 
-// Resolves once the given sounds are decoded (a missing file just resolves too, the synth fallback is used then).
+// Resolves once the given sounds are decoded
 export const audioReady = (names: string[]) => Promise.all(names.map(load)).then(() => {});
 
-// ---------- one-shots (instant when the buffer is decoded, synth fallback otherwise) ----------
+// ---------- One-Shot Dialogue Voiceovers (Instant Playback & Fallback) ----------
+const currentVO: { src?: AudioBufferSourceNode; elem?: HTMLAudioElement } = {};
+
+export function playVO(name: string, vol = 1.0) {
+  if (typeof window === 'undefined') return;
+  stopVO(); // Stop any currently playing dialogue line
+
+  // WebAudio API path (Decoded & Synced via AudioContext)
+  if (ctx && buf[name]) {
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    const s = ctx.createBufferSource(), g = ctx.createGain();
+    g.gain.value = vol;
+    s.buffer = buf[name];
+    s.connect(g).connect(sfx);
+    s.start(0);
+    currentVO.src = s;
+    return;
+  }
+
+  // HTML5 Audio Fallback (Direct file stream if WebAudio cache is still loading)
+  try {
+    const a = new Audio(`/audio/${name}.mp3`);
+    a.volume = vol;
+    a.play().catch(() => {});
+    currentVO.elem = a;
+  } catch (e) {
+    console.warn('[audio] Failed to play voiceover:', name, e);
+  }
+}
+
+export function stopVO() {
+  if (currentVO.src) {
+    try { currentVO.src.stop(); } catch {}
+    currentVO.src = undefined;
+  }
+  if (currentVO.elem) {
+    currentVO.elem.pause();
+    currentVO.elem = undefined;
+  }
+}
+
+// ---------- standard one-shots ----------
 function shot(n: string, vol: number, fb?: () => void) {
   if (!ctx) return;
   if (ctx.state !== 'running') ctx.resume().catch(() => {});
@@ -64,6 +112,7 @@ function shot(n: string, vol: number, fb?: () => void) {
 // ---------- loops ----------
 type Loop = { src: AudioBufferSourceNode; g: GainNode; name: string };
 const loops: Record<string, Loop> = {};
+
 function loopOn(key: string, name: string, vol: number, rate = 1) {
   if (!ctx) return;
   const b = buf[name]; if (!b) { load(name); return; }
@@ -75,16 +124,23 @@ function loopOn(key: string, name: string, vol: number, rate = 1) {
   src.connect(g).connect(sfx); src.start(); g.gain.setTargetAtTime(vol, t, .02);
   loops[key] = { src, g, name };
 }
+
 function loopOff(key: string, tc = .01) {
   const l = loops[key]; if (!l || !ctx) return;
   delete loops[key];
   const t = ctx.currentTime;
-  l.g.gain.cancelScheduledValues(t); l.g.gain.setTargetAtTime(0, t, tc);   // silent within ~40 ms
+  l.g.gain.cancelScheduledValues(t); l.g.gain.setTargetAtTime(0, t, tc);
   try { l.src.stop(t + tc * 5 + .02); } catch {}
 }
-export function stopLoops() { Object.keys(loops).forEach(k => loopOff(k)); mv = 'none'; br = false; }
 
-// Movement: call every frame; only acts when the state changes.
+export function stopLoops() { 
+  Object.keys(loops).forEach(k => loopOff(k)); 
+  stopVO(); 
+  mv = 'none'; 
+  br = false; 
+}
+
+// Movement
 let mv = 'none', mvVol = -1;
 export function setMovement(kind: 'none' | 'walk' | 'run' | 'crouch', vol = .6) {
   if (kind === mv && Math.abs(vol - mvVol) < .05) return;
@@ -94,7 +150,8 @@ export function setMovement(kind: 'none' | 'walk' | 'run' | 'crouch', vol = .6) 
   else if (kind === 'crouch') loopOn('move', 'walk', vol * .5, .8);
   else loopOn('move', 'walk', vol);
 }
-// Heavy breathing while stamina is empty.
+
+// Breathing
 let br = false;
 export function setBreath(on: boolean, vol = .9) {
   if (on === br) return;
@@ -102,31 +159,25 @@ export function setBreath(on: boolean, vol = .9) {
   if (on) loopOn('breath', 'breath', vol); else loopOff('breath', .12);
 }
 
-// ---------- named effects ----------
+// Named FX
 const synth = (f: number, d: number, type: OscillatorType = 'sine', v = .2) => {
   if (!ctx) return; const c = ctx, o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
   o.type = type; o.frequency.value = f; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.001, t + d);
   o.connect(g).connect(sfx); o.start(t); o.stop(t + d + .02);
 };
+
 export const click = () => synth(520, .08);
 export const paper = (v = .8) => shot('paper', v, () => synth(300, .15, 'triangle'));
 export const doorMetal = (v = .9) => shot('door_metal', v, () => synth(140, .4, 'square', .15));
 export const doorLocked = (v = .9) => shot('door_locked', v, () => synth(110, .2, 'square', .15));
-export const ring = (n = 4) => {
-  if (!ctx) return; const c = ctx;
-  for (let i = 0; i < n; i++) [0, .25].forEach(o => {
-    const t = c.currentTime + i * 1.1 + o, os = c.createOscillator(), g = c.createGain();
-    os.frequency.value = o ? 740 : 880; g.gain.setValueAtTime(.3, t); g.gain.setValueAtTime(0, t + .2);
-    os.connect(g).connect(sfx); os.start(t); os.stop(t + .22);
-  });
-};
+
 export const sting = () => {
   if (!ctx) return; const c = ctx, o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
   o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(32, t + 1.2);
   g.gain.setValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(.001, t + 1.4); o.connect(g).connect(sfx); o.start(t); o.stop(t + 1.5);
 };
 
-// Salim's crying: plays /public/audio/cry.mp3 once (not looped). If the file is missing, a synthesized sobbing is used.
+// Crying FX
 let cryNode: { src: AudioBufferSourceNode; g: GainNode } | null = null;
 export function cry(vol = 1) {
   if (!ctx) return; const c = ctx;
@@ -141,7 +192,6 @@ export function cry(vol = 1) {
     return;
   }
   load('cry');
-  // fallback: filtered-noise sobs, ~every 0.9 s, each a quick rise and slow fall
   const len = c.sampleRate * 8, nb = c.createBuffer(1, len, c.sampleRate), d = nb.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   const src = c.createBufferSource(), bp = c.createBiquadFilter(), g = c.createGain(), t = c.currentTime;
@@ -150,12 +200,13 @@ export function cry(vol = 1) {
   for (let k = 0; k < 8; k++) { const o = t + .2 + k * .95 + (k % 3) * .08; g.gain.setValueAtTime(0, o); g.gain.linearRampToValueAtTime(vol * .5, o + .12); g.gain.exponentialRampToValueAtTime(.001, o + .75); }
   src.connect(bp).connect(g).connect(sfx); src.start(t); src.stop(t + 8); cryNode = { src, g };
 }
+
 export function stopCry(tc = .3) {
   if (!ctx || !cryNode) return; const n = cryNode, t = ctx.currentTime; cryNode = null;
   n.g.gain.cancelScheduledValues(t); n.g.gain.setTargetAtTime(0, t, tc);
   try { n.src.stop(t + tc * 5 + .05); } catch {}
 }
-// dull thud of two knees hitting the floor
+
 export const thud = () => { synth(62, .35, 'sine', .45); synth(48, .45, 'triangle', .3); };
 
 function ambient() {
@@ -166,8 +217,7 @@ function ambient() {
   const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = .07; lg.gain.value = 90; l.connect(lg).connect(f.frequency); l.start();
 }
 
-// ---------- Ending theme: slow, melancholic piano-and-pad piece (Am - F - Dm - E), generated live.
-// If /public/audio/ending.mp3 exists it is used instead. Fades the ambient bed out while it plays.
+// Ending Music
 let endBus: GainNode | null = null;
 export function startEndingMusic() {
   if (!ctx || endBus) return;
@@ -175,14 +225,15 @@ export function startEndingMusic() {
   if (!buf.ending) load('ending');
   const bus = c.createGain(); bus.gain.setValueAtTime(0, c.currentTime); bus.gain.linearRampToValueAtTime(1, t0 + 5);
   endBus = bus;
-  bgm.gain.cancelScheduledValues(c.currentTime); bgm.gain.setTargetAtTime(0, c.currentTime, 1.2);   // ambient bed fades out
+  bgm.gain.cancelScheduledValues(c.currentTime); bgm.gain.setTargetAtTime(0, c.currentTime, 1.2);
   if (buf.ending) { const s = c.createBufferSource(); s.buffer = buf.ending; s.connect(bus); bus.connect(master); s.start(t0); return; }
-  // long, dark reverb (generated impulse response)
+  
   const len = Math.floor(c.sampleRate * 3.4), ir = c.createBuffer(2, len, c.sampleRate);
   for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.4); }
   const conv = c.createConvolver(); conv.buffer = ir;
   const wet = c.createGain(), dry = c.createGain(); wet.gain.value = 0.6; dry.gain.value = 0.65;
   bus.connect(dry).connect(master); bus.connect(conv).connect(wet).connect(master);
+  
   const pad = (f: number, t: number, d: number, v: number) => {
     [-5, 5].forEach(det => {
       const o = c.createOscillator(), g = c.createGain(), lp = c.createBiquadFilter();
@@ -200,10 +251,10 @@ export function startEndingMusic() {
     });
   };
   const chords: [number[], number[]][] = [
-    [[110, 164.81, 220, 261.63], [659.25, 523.25, 587.33, 440]],      // Am
-    [[87.31, 174.61, 220, 261.63], [523.25, 440, 523.25, 698.46]],    // F
-    [[73.42, 146.83, 220, 293.66], [587.33, 698.46, 440, 587.33]],    // Dm
-    [[82.41, 164.81, 246.94, 329.63], [493.88, 415.3, 493.88, 659.25]], // E
+    [[110, 164.81, 220, 261.63], [659.25, 523.25, 587.33, 440]],
+    [[87.31, 174.61, 220, 261.63], [523.25, 440, 523.25, 698.46]],
+    [[73.42, 146.83, 220, 293.66], [587.33, 698.46, 440, 587.33]],
+    [[82.41, 164.81, 246.94, 329.63], [493.88, 415.3, 493.88, 659.25]],
   ];
   const beat = [0.7, 2.3, 3.9, 5.1], L = 6.6;
   for (let cyc = 0; cyc < 2; cyc++) chords.forEach(([notes, mel], k) => {
@@ -213,9 +264,11 @@ export function startEndingMusic() {
   });
   bus.gain.setValueAtTime(1, t0 + 8 * L - 4); bus.gain.linearRampToValueAtTime(0, t0 + 8 * L + 1);
 }
+
 export function stopEndingMusic() {
   if (!ctx) return;
   stopCry();
+  stopVO();
   if (endBus) { const t = ctx.currentTime; endBus.gain.cancelScheduledValues(t); endBus.gain.setTargetAtTime(0, t, 0.4); endBus = null; }
   applyVol();
 }
