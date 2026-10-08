@@ -38,8 +38,8 @@ function PlayerBody() {
   const groupRef = useRef<THREE.Group>(null!);
   const { camera } = useThree();
   
-  // تحميل مجسم الشخصية وأنيميشناتها
-  const { scene, animations } = useGLTF('/models/player/character.glb');
+  // تحميل مجسم الشخصية الأنصاري/الجزائري وأنيميشناتها من المسار الصحيح
+  const { scene, animations } = useGLTF('/models/algerian_man.glb');
   const { actions, names } = useAnimations(animations, groupRef);
   const currentAnim = useRef<string>('');
 
@@ -350,4 +350,4 @@ export default function Player() {
   );
 }
 
-useGLTF.preload('/models/player/character.glb');
+useGLTF.preload('/models/algerian_man.glb');
