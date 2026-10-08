@@ -25,6 +25,7 @@ export default function Game(){
 
   const ar = lang === 'ar';
   const [hint, setHint] = useState(0);
+  const [profileOpen, setProfileOpen] = useState(false); // حالة جديدة لفتح لوحة البروفايل والإنجازات
 
   useEffect(() => {
     useGame.setState({ touch: matchMedia('(pointer:coarse)').matches });
@@ -44,7 +45,6 @@ export default function Game(){
     document.documentElement.lang = lang;
   }, [lang, ar]);
 
-  // دالة الدخول للمرحلة مع مؤقت أمان مضمون يمنع التعليق نهائياً
   const enter = (nextScene: string, then: 'game' | 'cutscene' = 'game') => {
     useGame.setState({ 
       err: '', 
@@ -57,7 +57,6 @@ export default function Game(){
     });
     setHint(Math.floor(Math.random() * 3));
 
-    // مؤقت أمان يضمن خروج شاشة التحميل وبدء اللعبة/الكاتسين بعد ثانيتين كحد أقصى
     setTimeout(() => {
       const s = useGame.getState();
       if (s.screen === 'loading') {
@@ -79,16 +78,48 @@ export default function Game(){
   const lore = LORE[scene] || { ar: 'المستودع المهجور', en: 'Abandoned Warehouse', g: '#14262a' };
 
   return (
-    <main className="fixed inset-0">
+    <main className="fixed inset-0 overflow-hidden select-none touch-none">
       {(inGame || screen === 'end') && <GameCanvas />}
+      
+      {/* زر الحساب: إذا كان مسجلاً يفتح لوحة البروفايل، وإذا لم يكن مسجلاً يبدأ تسجيل الدخول بـ Google */}
       {!inGame && screen !== 'end' && (
-        <div className="fixed top-3 end-3 z-30 glass flex items-center gap-2 ps-4 pe-1.5 py-1.5 cursor-pointer" onClick={() => user ? signOut() : signInGoogle()}>
+        <div className="fixed top-3 end-3 z-30 glass flex items-center gap-2 ps-4 pe-1.5 py-1.5 cursor-pointer" onClick={() => user ? setProfileOpen(true) : signInGoogle()}>
           <span className="text-sm">{user ? user.name : t('login')}</span>
           <div className="w-8 h-8 rounded-full bg-gold text-ink grid place-items-center font-bold overflow-hidden">
-            {user?.avatar ? <img src={user.avatar} alt="" /> : (user?.name[0] || '?')}
+            {user?.avatar ? <img src={user.avatar} alt="" className="w-full h-full object-cover" /> : (user?.name?.[0] || '?')}
           </div>
         </div>
       )}
+
+      {/* لوحة البروفايل والإنجازات (تفتح عند الضغط على الكونكونت بدل عمل Sign out) */}
+      {profileOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 grid place-items-center p-4 backdrop-blur-sm">
+          <div className="glass p-6 w-full max-w-sm flex flex-col gap-4 text-center">
+            <h3 className="font-display text-2xl text-gold">{ar ? 'ملف اللاعب' : 'Player Profile'}</h3>
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-full bg-gold text-ink grid place-items-center font-bold text-2xl overflow-hidden border-2 border-gold">
+                {user?.avatar ? <img src={user.avatar} alt="" className="w-full h-full object-cover" /> : (user?.name?.[0] || '?')}
+              </div>
+              <p className="font-bold text-lg text-bone">{user?.name}</p>
+            </div>
+            
+            <div className="bg-black/40 p-3 rounded-lg text-start text-xs text-white/70">
+              <p className="font-bold text-gold mb-1">{ar ? 'الإنجازات المكتسبة:' : 'Achievements:'}</p>
+              <p>{Object.keys(achievements || {}).length} {ar ? 'إنجاز متاح' : 'Unlocked'}</p>
+            </div>
+
+            <div className="flex gap-2 mt-2">
+              <button className="btn flex-1 bg-blood/20 !border-blood text-blood" onClick={() => { signOut(); setProfileOpen(false); }}>
+                {ar ? 'تسجيل الخروج' : 'Sign Out'}
+              </button>
+              <button className="btn flex-1" onClick={() => setProfileOpen(false)}>
+                {ar ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {screen === 'splash' && (
         <div onClick={() => useGame.setState({ screen: 'menu' })} className="fixed inset-0 grid place-items-center text-center cursor-pointer bg-[radial-gradient(ellipse_at_50%_110%,#2b2417,#0c0b0e_65%)]">
           <div>
@@ -137,7 +168,7 @@ export default function Game(){
           </div>
         </div>
       )}
-      {settingsOpen && <Settings />}
+      {settingsOptionsCheck(settingsOpen) && <Settings />}
       {err && (
         <div className="fixed inset-0 z-[90] bg-black/90 grid place-items-center p-6 text-center">
           <div className="glass p-5 max-w-md">
@@ -150,6 +181,10 @@ export default function Game(){
       {toast && <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[80] glass !border-gold px-5 py-2">★ {t(toast)}</div>}
     </main>
   );
+}
+
+function settingsOptionsCheck(isOpen: boolean) {
+  return isOpen;
 }
 
 function Subs() {
