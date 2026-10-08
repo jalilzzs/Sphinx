@@ -48,7 +48,7 @@ export default function Player() {
   const resp = useGame(s => s.touchResp);
   const shadows = useGame(s => s.shadows);
 
-  // إعادة ضبط الكاميرا والأرضية فور تغير المشهد (مثل المستودع المهجور)
+  // إعادة ضبط الكاميرا والأرضية فور تغير المشهد
   useEffect(() => {
     world.cam = camera;
     world.gl = gl;
@@ -71,19 +71,20 @@ export default function Player() {
       const s = useGame.getState();
       held.add(k);
       if (s.pauseOpen || s.settingsOpen) return;
-      if (k === K.sprint) s.set({ sprint: true });
-      if (k === K.crouch) s.set({ crouch: !s.crouch });
-      if (k === K.light) s.set({ light: !s.light });
-      if (k === K.phone) s.set({ phoneOpen: !s.phoneOpen });
-      if (k === K.inv) s.set({ invOpen: !s.invOpen });
-      if (k === K.act) s.set({ actReq: Date.now() });
+      if (k === K.sprint?.toLowerCase()) s.set({ sprint: true });
+      if (k === K.crouch?.toLowerCase()) s.set({ crouch: !s.crouch });
+      if (k === K.light?.toLowerCase()) s.set({ light: !s.light });
+      if (k === K.phone?.toLowerCase()) s.set({ phoneOpen: !s.phoneOpen });
+      if (k === K.inv?.toLowerCase()) s.set({ invOpen: !s.invOpen });
+      if (k === K.act?.toLowerCase()) s.set({ actReq: Date.now() });
       if (k === 'escape') s.set({ pauseOpen: true });
     };
 
     const ku = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
       held.delete(k);
-      if (k === useGame.getState().keys.sprint) useGame.getState().set({ sprint: false });
+      const K = useGame.getState().keys;
+      if (k === K.sprint?.toLowerCase()) useGame.getState().set({ sprint: false });
     };
 
     addEventListener('keydown', kd);
@@ -150,12 +151,15 @@ export default function Player() {
     const run = (s.sprint || s.move.y < -0.9) && moving && !s.crouch && s.stamina > 0;
     const speed = (s.crouch ? 1.1 : run ? 3.8 : 2.2) * mag * (s.stamina <= 0 ? 0.6 : 1);
 
-    // تحديث Stamina بحذر شديد لتجنب اللاق
+    // تحديث Stamina بشكل دقيق ومستمر
     let st = s.stamina;
-    if (run) st = Math.max(0, s.stamina - 20 * dt);
-    else st = Math.min(100, s.stamina + (moving ? 10 : 18) * dt);
+    if (run) {
+      st = Math.max(0, s.stamina - 22 * dt);
+    } else {
+      st = Math.min(100, s.stamina + (moving ? 10 : 18) * dt);
+    }
 
-    if (Math.abs(st - s.stamina) > 5 || st === 0 || st === 100) {
+    if (Math.abs(st - s.stamina) > 0.05) {
       useGame.setState({ stamina: st });
     }
 
@@ -193,10 +197,12 @@ export default function Player() {
 
     world.pos = [camera.position.x, camera.position.y, camera.position.z];
 
-    // Movement sound = a loop that plays only while the player really moves, and stops at once when they halt
-    setMovement(actuallyMoved ? (s.crouch ? 'crouch' : run ? 'run' : 'walk') : 'none', run ? .9 : .6);
-    // Breathing loop while stamina is empty; stops once it has recovered a bit (hysteresis)
-    if (st <= 0) breathingRef.current = true; else if (st > 25) breathingRef.current = false;
+    // أصوات الحركة والتنفس
+    setMovement(actuallyMoved ? (s.crouch ? 'crouch' : run ? 'run' : 'walk') : 'none', run ? 0.9 : 0.6);
+    
+    if (st <= 0) breathingRef.current = true;
+    else if (st > 25) breathingRef.current = false;
+    
     setBreath(breathingRef.current);
 
     saveT.current += dt;
