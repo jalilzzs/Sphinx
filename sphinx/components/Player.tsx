@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { PointerLockControls } from '@react-three/drei';
+import { PointerLockControls, useGLTF, useAnimations } from '@react-three/drei';
 import * as THREE from 'three';
 import { useGame } from '@/lib/store';
 import { colliders, world } from '@/lib/world';
@@ -33,6 +33,87 @@ function wallAhead(p: THREE.Vector3, f: THREE.Vector3, floor: number) {
   return !!hit(_rayOrigin, f, 0.45);
 }
 
+// مكون مجسم الشخصية الكاملة بداخل الكاميرا (إخفاء الرأس وتطبيق الأنيميشن)
+function PlayerBody() {
+  const groupRef = useRef<THREE.Group>(null!);
+  const { camera } = useThree();
+  
+  // تحميل مجسم الشخصية وأنيميشناتها
+  const { scene, animations } = useGLTF('/models/player/character.glb');
+  const { actions, names } = useAnimations(animations, groupRef);
+  const currentAnim = useRef<string>('');
+
+  // إخفاء مجسم ورأس الشخصية لمنع حجب الكاميرا من الداخل
+  useEffect(() => {
+    if (!scene) return;
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const name = child.name.toLowerCase();
+        if (
+          name.includes('head') ||
+          name.includes('face') ||
+          name.includes('hair') ||
+          name.includes('eye') ||
+          name.includes('teeth')
+        ) {
+          child.visible = false;
+        } else {
+          child.castShadow = true;
+          child.receiveShadow = true;
+        }
+      }
+    });
+  }, [scene]);
+
+  useFrame((_, delta) => {
+    if (!groupRef.current) return;
+
+    const s = useGame.getState();
+    const isMoving = Math.hypot(s.move?.x || 0, s.move?.y || 0) > 0.1;
+    const isRunning = isMoving && s.sprint;
+    const isCrouching = s.crouch;
+
+    // تمركز الجسم أسفل الكاميرا مباشرة
+    const eyeHeight = isCrouching ? 0.9 : 1.65;
+    groupRef.current.position.set(
+      camera.position.x,
+      camera.position.y - eyeHeight,
+      camera.position.z
+    );
+
+    // تدوير الجسم مع اتجاه النظر الأفقي للكاميرا
+    const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    euler.setFromQuaternion(camera.quaternion);
+    groupRef.current.rotation.y = euler.y;
+
+    // تحديد وتطبييق الأنيميشن
+    let targetAnim = 'Idle';
+    if (isCrouching) {
+      targetAnim = isMoving ? 'CrouchWalk' : 'CrouchIdle';
+    } else if (isRunning) {
+      targetAnim = 'Run';
+    } else if (isMoving) {
+      targetAnim = 'Walk';
+    }
+
+    const matched = names.find(n => n.toLowerCase().includes(targetAnim.toLowerCase())) || names[0];
+
+    if (matched && currentAnim.current !== matched) {
+      if (currentAnim.current && actions[currentAnim.current]) {
+        actions[currentAnim.current]?.fadeOut(0.15);
+      }
+      actions[matched]?.reset().fadeIn(0.15).play();
+      currentAnim.current = matched;
+    }
+  });
+
+  return (
+    <group ref={groupRef} dispose={null}>
+      <primitive object={scene} scale={1} />
+    </group>
+  );
+}
+
 export default function Player() {
   const { camera, gl, scene } = useThree();
   const light = useRef<THREE.SpotLight>(null!);
@@ -49,12 +130,17 @@ export default function Player() {
   const resp = useGame(s => s.touchResp);
   const shadows = useGame(s => s.shadows);
 
-  // إعادة ضبط الكاميرا ومزامنة الزوايا فور تغيير المشهد أو الشاشة (مثلاً عند العودة عبر Continue)
+  // إعادة ضبط الكاميرا ومزامنة الزوايا فور تغيير المشهد أو الشاشة (حل تجمد Continue)
   useEffect(() => {
     world.cam = camera;
     world.gl = gl;
     world.scene = scene;
-    (camera as THREE.PerspectiveCamera).rotation.order = 'YXZ';
+    
+    // ضبط حد رؤية الكاميرا القريب لرؤية الأيدي والصدر القريبين
+    const persCam = camera as THREE.PerspectiveCamera;
+    persCam.rotation.order = 'YXZ';
+    persCam.near = 0.05;
+    persCam.updateProjectionMatrix();
 
     const spawn = world.spawn || { x: 0, y: 0, z: 0 };
     const initialY = spawn.y || 0;
@@ -63,7 +149,7 @@ export default function Player() {
     camera.position.set(spawn.x, initialY + 1.65, spawn.z);
     safe.current.copy(camera.position);
 
-    // مزامنة زوايا yaw و pitch مباشرة مع تدوير الكاميرا الحالي لتفادي التجمد والتكالي
+    // مزامنة زوايا yaw و pitch مع تدوير الكاميرا
     yaw.current = camera.rotation.y;
     pitch.current = camera.rotation.x;
   }, [currentScene, screen, camera, gl, scene]);
@@ -101,7 +187,7 @@ export default function Player() {
     };
   }, []);
 
-  // تحكم التاتش على الهاتف مع معالجة حصر اللمس وتفريغ المعرف عند إلغاء التاتش
+  // تحكم التاتش على الهاتف ومعالجة حصر اللمس
   useEffect(() => {
     if (!touch) return;
     const el = gl.domElement;
@@ -110,7 +196,6 @@ export default function Player() {
 
     const d = (e: PointerEvent) => {
       const s = useGame.getState();
-      // إذا كانت القوائم مفتوحة لا تقرأ التاتش للتدوير
       if (s.pauseOpen || s.settingsOpen || s.invOpen || s.phoneOpen || s.screen !== 'game') return;
 
       if (e.clientX > innerWidth * 0.35 && id < 0) {
@@ -118,7 +203,6 @@ export default function Player() {
         lx = e.clientX;
         ly = e.clientY;
 
-        // إعادة ضبط زوايا الكاميرا عند أول لمسة لتفادي القفزات المفاجئة
         yaw.current = camera.rotation.y;
         pitch.current = camera.rotation.x;
       }
@@ -251,6 +335,7 @@ export default function Player() {
   return (
     <>
       {!touch && <PointerLockControls pointerSpeed={0.4 + sens} />}
+      <PlayerBody />
       <spotLight
         ref={light}
         angle={0.5}
@@ -264,3 +349,5 @@ export default function Player() {
     </>
   );
 }
+
+useGLTF.preload('/models/player/character.glb');
