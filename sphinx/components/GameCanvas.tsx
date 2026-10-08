@@ -11,7 +11,6 @@ import SceneModel from './SceneModel';
 import Player from './Player';
 import Cutscene from './Cutscene';
 import Interactables from './Interactables';
-import { FPVArms } from './FPVArms';
 
 const SSAO: any = PP.SSAO, FXAA: any = (PP as any).FXAA || PP.SMAA;
 
@@ -99,13 +98,12 @@ export default function GameCanvas() {
           {/* مجسم الغرفة 3D ينعرض دائماً في الخلفية للكاتسين وللعب */}
           <SceneModel key={scene} id={scene} />
 
-          {/* إذا كنا في مرحلة الكاتسين نعرض تحريك الكاميرا والقصة، وإذا انتهت نعرض حركة اللاعب واليدين والتفاعلات */}
+          {/* إذا كنا في مرحلة الكاتسين نعرض تحريك الكاميرا والقصة، وإذا انتهت نعرض حركة اللاعب والتفاعلات */}
           {screen === 'cutscene' ? (
             <Cutscene />
           ) : (
             <>
               <Player />
-              <FPVArms />
               <Interactables />
             </>
           )}
