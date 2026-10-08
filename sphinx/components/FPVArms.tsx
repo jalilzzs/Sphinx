@@ -1,64 +1,71 @@
 'use client';
-import { useRef } from 'react';
+import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { SkeletonUtils } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { useGame } from '@/lib/store';
-import { Obj } from './Inventory'; // لإظهار الغرض المحمول في اليد
+import { Obj } from './Inventory';
 
 export function FPVArms() {
   const groupRef = useRef<THREE.Group>(null!);
+  const armGroupRef = useRef<THREE.Group>(null!);
   const { scene } = useGLTF('/models/player/hands.glb');
-  const g = useGame();
 
-  // متغيرات لتعديل مكان وتأرجح اليدين
-  const posOffset = new THREE.Vector3(0.2, -0.35, -0.45); // [يمين/يسار، أسفل/أعلى، قريب/بعيد]
+  // استنساخ مجسم العظام (SkinnedMesh) بطريقة صحيحة لمنع اختفاء اليدين
+  const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
+
+  // إحداثيات تمركز اليدين أمام الكاميرا [يمين/يسار، أسفل/أعلى، قريب/بعيد]
+  const posOffset = useMemo(() => new THREE.Vector3(0.18, -0.28, -0.4), []);
 
   useFrame((state, delta) => {
     if (!groupRef.current) return;
 
-    // 1. اتباع حركة ومكان الكاميرا دائمًا
+    // 1. مطابقة الكاميرا في كل إطار
     groupRef.current.position.copy(state.camera.position);
     groupRef.current.quaternion.copy(state.camera.quaternion);
 
-    // 2. حساب حركة التأرجح (Head & Hand Bobbing) أثناء المشي والجري
-    // يمكنك تعديل الخصائص حسب حالة الحركة في store
-    const isMoving = (g as any).isMoving || false;
-    const isRunning = (g as any).isRunning || false;
+    // 2. قراءة حالة الحركة المباشرة من الستور
+    const g = useGame.getState();
+    const isMoving = Math.hypot(g.move?.x || 0, g.move?.y || 0) > 0.1;
+    const isRunning = isMoving && g.sprint;
 
-    if (isMoving) {
-      const speed = isRunning ? 12 : 7;
-      const amount = isRunning ? 0.02 : 0.01;
-      const t = state.clock.getElapsedTime() * speed;
+    // 3. تأرجح اليدين أثناء المشي والركض
+    if (armGroupRef.current) {
+      if (isMoving) {
+        const speed = isRunning ? 12 : 7;
+        const amount = isRunning ? 0.025 : 0.012;
+        const t = state.clock.getElapsedTime() * speed;
 
-      // حركة موجية للأعلى والأسفل وللجانبين
-      groupRef.current.children[0].position.y = posOffset.y + Math.sin(t) * amount;
-      groupRef.current.children[0].position.x = posOffset.x + Math.cos(t / 2) * (amount * 0.8);
-    } else {
-      // العودة السلسة للوضع الطبيعي عند التوقف
-      groupRef.current.children[0].position.y = THREE.MathUtils.lerp(
-        groupRef.current.children[0].position.y,
-        posOffset.y,
-        delta * 5
-      );
-      groupRef.current.children[0].position.x = THREE.MathUtils.lerp(
-        groupRef.current.children[0].position.x,
-        posOffset.x,
-        delta * 5
-      );
+        armGroupRef.current.position.y = posOffset.y + Math.sin(t) * amount;
+        armGroupRef.current.position.x = posOffset.x + Math.cos(t / 2) * (amount * 0.8);
+      } else {
+        // العودة السلسة للوضع الطبيعي عند التوقف
+        armGroupRef.current.position.y = THREE.MathUtils.lerp(
+          armGroupRef.current.position.y,
+          posOffset.y,
+          delta * 6
+        );
+        armGroupRef.current.position.x = THREE.MathUtils.lerp(
+          armGroupRef.current.position.x,
+          posOffset.x,
+          delta * 6
+        );
+      }
     }
   });
 
+  const equippedItem = useGame(s => (s as any).equippedItem);
+
   return (
     <group ref={groupRef}>
-      {/* تموضع اليدين بالنسبة لزاوية رؤية الكاميرا */}
-      <group position={posOffset.toArray()} rotation={[0, Math.PI, 0]}>
-        <primitive object={scene.clone()} scale={0.4} />
+      <group ref={armGroupRef} position={posOffset.toArray()} rotation={[0, Math.PI, 0]}>
+        <primitive object={clonedScene} scale={0.4} />
 
-        {/* 3. إظهار الغرض المجهز حالياً في اليد اليمنى (مثل الكشاف أو المفتاح) */}
-        {(g as any).equippedItem && (
+        {/* إظهار الغرض المجهز في اليد */}
+        {equippedItem && (
           <group position={[0.1, 0.05, 0.2]} rotation={[0.2, 0.5, 0]} scale={0.3}>
-            <Obj id={(g as any).equippedItem} />
+            <Obj id={equippedItem} />
           </group>
         )}
       </group>
@@ -66,5 +73,4 @@ export function FPVArms() {
   );
 }
 
-// تحضير مسبق للموديل لمنع التأخير عند التحميل
 useGLTF.preload('/models/player/hands.glb');
