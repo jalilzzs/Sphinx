@@ -1,0 +1,4 @@
+@tailwind base;@tailwind components;@tailwind utilities;
+html,body{height:100%;overscroll-behavior:none;touch-action:none;-webkit-touch-callout:none;background:#0c0b0e;color:#e9e2d0;overflow:hidden;font-family:'Tajawal',system-ui,sans-serif;user-select:none;-webkit-tap-highlight-color:transparent}
+.glass{background:rgba(24,22,28,.62);border:1px solid rgba(233,226,208,.14);backdrop-filter:blur(16px);border-radius:18px}
+.btn{@apply glass px-5 py-3 transition active:scale-95 hover:border-gold}
