@@ -7,7 +7,7 @@ import { useGame } from '@/lib/store';
 import { world, colliders } from '@/lib/world';
 import { PUZ } from '@/lib/puzzles';
 import { floorAt, placeOf } from '@/lib/place';
-import { sting, startEndingMusic, cry, thud, setMovement, setBreath, stopLoops } from '@/lib/audio';
+import { sting, startEndingMusic, cry, thud, setMovement, setBreath, stopLoops, playVO } from '@/lib/audio';
 import { readModel } from '@/lib/assets';
 import { NOUR_URL } from '@/lib/scenes';
 import { setBlink, setTear, resetEyes } from '@/lib/fx';
@@ -35,6 +35,9 @@ const setSub = (txt: string) => { if (useGame.getState().sub !== txt) useGame.se
 function Intro() {
   const { camera } = useThree();
   const T = useRef(0), base = useRef<THREE.Vector3 | null>(null), tg = useRef<THREE.Vector3[]>([]), look = useRef(new THREE.Vector3());
+  const flagged = useRef<Record<string, boolean>>({});
+  const once = (k: string, fn: () => void) => { if (!flagged.current[k]) { flagged.current[k] = true; fn(); } };
+
   useFrame((_, dt) => {
     const s = useGame.getState();
     if ((s.screen !== 'cutscene' && s.screen !== 'loading') || !colliders.length || s.sceneReady !== s.scene) return;   // wait until THIS room is built
@@ -54,6 +57,12 @@ function Intro() {
     look.current.lerpVectors(G[seg], G[nxt], sm(0, 1, (t - seg * 3.2) / 3.2 * 1.2));
     camera.lookAt(look.current);
     const L = s.lang === 'ar' ? INTRO.ar : INTRO.en;
+    
+    // Voiceovers for Intro
+    if (t >= 0.6) once('vo_intro_1', () => playVO('vo_intro_1'));
+    if (t >= 3.4) once('vo_intro_2', () => playVO('vo_intro_2'));
+    if (t >= 6.4) once('vo_intro_3', () => playVO('vo_intro_3'));
+
     setSub(t < 0.6 ? '' : t < 3.4 ? L[0] : t < 6.4 ? L[1] : t < 9.4 ? L[2] : '');
     const f = t < 1 ? 1 - t : 0;                                              // short fade-in from black
     if (Math.abs(s.fade - f) > 0.02) useGame.setState({ fade: f });
@@ -164,6 +173,12 @@ function HallEnding() {
 
     // ---- dialogue / subtitles ----
     setSub(t < T_N1 ? '' : t < T_N1 + 3.4 ? H.n1 : t < T_S1 ? '' : t < T_S1 + 3.6 ? H.s1 : t < T_N2 ? '' : t < T_N2 + 3.8 ? H.n2 : t < tS + 0.15 ? '' : t < tS + YELL - 0.2 ? H.s2 : '');
+
+    // ---- dialogue voiceovers ----
+    if (t >= T_N1) once('vo_nour_1', () => playVO('vo_nour_1'));
+    if (t >= T_S1) once('vo_salim_1', () => playVO('vo_salim_1'));
+    if (t >= T_N2) once('vo_nour_2', () => playVO('vo_nour_2'));
+    if (t >= tS + 0.15) once('vo_salim_2', () => playVO('vo_salim_2'));
 
     // ---- run profile (accelerate, cruise, brake) ----
     const { v, ta, td } = RUN;
