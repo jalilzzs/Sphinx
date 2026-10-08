@@ -38,17 +38,18 @@ export default function Player() {
   const light = useRef<THREE.SpotLight>(null!);
   const breathingRef = useRef(false);
   const bob = useRef(0), stepT = useRef(0), breathT = useRef(0), eye = useRef(1.65);
-  useEffect(() => () => { stopLoops(); }, []); // leaving the scene / unmounting: silence movement + breathing
+  useEffect(() => () => { stopLoops(); }, []); // unmounting: silence movement + breathing
   const yaw = useRef(0), pitch = useRef(0), saveT = useRef(0), idle = useRef(0);
   const floor = useRef(0), safe = useRef(new THREE.Vector3());
 
   const currentScene = useGame(s => s.scene);
+  const screen = useGame(s => s.screen);
   const touch = useGame(s => s.touch);
   const sens = useGame(s => s.sens);
   const resp = useGame(s => s.touchResp);
   const shadows = useGame(s => s.shadows);
 
-  // إعادة ضبط الكاميرا والأرضية فور تغير المشهد
+  // إعادة ضبط الكاميرا ومزامنة الزوايا فور تغيير المشهد أو الشاشة (مثلاً عند العودة عبر Continue)
   useEffect(() => {
     world.cam = camera;
     world.gl = gl;
@@ -61,7 +62,11 @@ export default function Player() {
     floor.current = initialY;
     camera.position.set(spawn.x, initialY + 1.65, spawn.z);
     safe.current.copy(camera.position);
-  }, [currentScene, camera, gl, scene]);
+
+    // مزامنة زوايا yaw و pitch مباشرة مع تدوير الكاميرا الحالي لتفادي التجمد والتكالي
+    yaw.current = camera.rotation.y;
+    pitch.current = camera.rotation.x;
+  }, [currentScene, screen, camera, gl, scene]);
 
   useEffect(() => {
     const kd = (e: KeyboardEvent) => {
@@ -96,6 +101,7 @@ export default function Player() {
     };
   }, []);
 
+  // تحكم التاتش على الهاتف مع معالجة حصر اللمس وتفريغ المعرف عند إلغاء التاتش
   useEffect(() => {
     if (!touch) return;
     const el = gl.domElement;
@@ -103,15 +109,29 @@ export default function Player() {
     const k = 0.004 * (sens + 0.5) * resp;
 
     const d = (e: PointerEvent) => {
+      const s = useGame.getState();
+      // إذا كانت القوائم مفتوحة لا تقرأ التاتش للتدوير
+      if (s.pauseOpen || s.settingsOpen || s.invOpen || s.phoneOpen || s.screen !== 'game') return;
+
       if (e.clientX > innerWidth * 0.35 && id < 0) {
         id = e.pointerId;
         lx = e.clientX;
         ly = e.clientY;
+
+        // إعادة ضبط زوايا الكاميرا عند أول لمسة لتفادي القفزات المفاجئة
+        yaw.current = camera.rotation.y;
+        pitch.current = camera.rotation.x;
       }
     };
 
     const m = (e: PointerEvent) => {
       if (e.pointerId !== id) return;
+      const s = useGame.getState();
+      if (s.pauseOpen || s.settingsOpen || s.invOpen || s.phoneOpen || s.screen !== 'game') {
+        id = -1;
+        return;
+      }
+
       yaw.current -= (e.clientX - lx) * k;
       pitch.current = THREE.MathUtils.clamp(pitch.current - (e.clientY - ly) * k, -1.3, 1.3);
       lx = e.clientX;
@@ -119,15 +139,22 @@ export default function Player() {
       camera.rotation.set(pitch.current, yaw.current, 0);
     };
 
-    const u = (e: PointerEvent) => { if (e.pointerId === id) id = -1; };
+    const resetTouch = (e: PointerEvent) => {
+      if (e.pointerId === id) id = -1;
+    };
 
     el.addEventListener('pointerdown', d);
     el.addEventListener('pointermove', m);
-    el.addEventListener('pointerup', u);
+    el.addEventListener('pointerup', resetTouch);
+    el.addEventListener('pointercancel', resetTouch);
+    el.addEventListener('pointerleave', resetTouch);
+
     return () => {
       el.removeEventListener('pointerdown', d);
       el.removeEventListener('pointermove', m);
-      el.removeEventListener('pointerup', u);
+      el.removeEventListener('pointerup', resetTouch);
+      el.removeEventListener('pointercancel', resetTouch);
+      el.removeEventListener('pointerleave', resetTouch);
     };
   }, [touch, sens, resp, camera, gl]);
 
@@ -151,7 +178,7 @@ export default function Player() {
     const run = (s.sprint || s.move.y < -0.9) && moving && !s.crouch && s.stamina > 0;
     const speed = (s.crouch ? 1.1 : run ? 3.8 : 2.2) * mag * (s.stamina <= 0 ? 0.6 : 1);
 
-    // تحديث Stamina بشكل دقيق ومستمر
+    // تحديث Stamina
     let st = s.stamina;
     if (run) {
       st = Math.max(0, s.stamina - 22 * dt);
