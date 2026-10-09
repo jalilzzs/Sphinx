@@ -171,6 +171,15 @@ export const paper = (v = .8) => shot('paper', v, () => synth(300, .15, 'triangl
 export const doorMetal = (v = .9) => shot('door_metal', v, () => synth(140, .4, 'square', .15));
 export const doorLocked = (v = .9) => shot('door_locked', v, () => synth(110, .2, 'square', .15));
 
+export const ring = (n = 4) => {
+  if (!ctx) return; const c = ctx;
+  for (let i = 0; i < n; i++) [0, .25].forEach(o => {
+    const t = c.currentTime + i * 1.1 + o, os = c.createOscillator(), g = c.createGain();
+    os.frequency.value = o ? 740 : 880; g.gain.setValueAtTime(.3, t); g.gain.setValueAtTime(0, t + .2);
+    os.connect(g).connect(sfx); os.start(t); os.stop(t + .22);
+  });
+};
+
 export const sting = () => {
   if (!ctx) return; const c = ctx, o = c.createOscillator(), g = c.createGain(), t = c.currentTime;
   o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(32, t + 1.2);
