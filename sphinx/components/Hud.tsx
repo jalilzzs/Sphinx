@@ -40,7 +40,6 @@ export default function Hud(){
     {g.pauseOpen&&<div className="fixed inset-0 z-[55] bg-black/70 grid place-items-center p-4"><div className="glass p-6 w-full max-w-xs flex flex-col gap-3"><h3 className="font-display text-3xl text-center">{ar?'إيقاف مؤقت':'Paused'}</h3>
       <button className="btn !border-gold" onClick={()=>g.set({pauseOpen:false})}>{ar?'استئناف':'Resume game'}</button>
       <button className="btn" onClick={()=>g.set({settingsOpen:true})}>{ar?'الإعدادات':'Settings'}</button>
-      <button className="btn text-sm opacity-60" onClick={()=>g.set({pauseOpen:false,exitReq:Date.now()})}>{ar?'تخطي الفصل (اختبار)':'Skip chapter (test)'}</button>
       <button className="btn" onClick={async()=>{await save();g.set({pauseOpen:false,phoneOpen:false,invOpen:false,screen:'menu'})}}>{ar?'الخروج إلى القائمة':'Exit to main menu'}</button></div></div>}
   </>}
 
