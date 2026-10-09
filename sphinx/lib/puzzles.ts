@@ -8,27 +8,28 @@ export type Pz={id:string;kind:'clue'|'code'|'switch'|'container'|'exit';off:[nu
   photo?:boolean;fx?:'power'|'sting';focus?:string; // phone-camera clue / environmental effect / camera looks at this interactable afterwards
   note?:{title:T;text:T};                        // paper note shown when read
   mono?:T;locked?:T;needMsg?:T;wrong?:T};        // monologue on success / when requirement not met / when item missing / wrong code
+
 export const PUZ:Record<string,Pz[]>={
  bathroom_interior:[
   {id:'b_mirror',kind:'clue',off:[0,-1],photo:true,en:'Examine the mirror',ar:'افحص المرآة',
    note:{title:{en:'The mirror',ar:'المرآة'},text:{en:'Four digits, drawn by a finger in the fog:\n\n1 · 9 · 0 · 4',ar:'أربعة أرقام رُسمت بإصبعٍ على البخار:\n\n1 · 9 · 0 · 4'}},
    mono:{en:'Somebody wrote numbers in the fog. Fresh. Why show them to me?',ar:'أحدهم كتب أرقاماً على البخار. حديثة. لماذا يُريني إياها؟'}},
-  {id:'b_cabinet',kind:'code',off:[1,0],code:'1904',give:'ink',en:'Open the cabinet',ar:'افتح الخزانة',
+  {id:'b_cabinet',kind:'code',off:[1,0],code:'1904',give:'ink',showIf:'b_mirror',en:'Open the cabinet',ar:'افتح الخزانة',
    wrong:{en:'No. Four digits… the mirror had four digits.',ar:'لا. أربعة أرقام… المرآة كانت تحمل أربعة أرقام.'},
    mono:{en:'Ink. Black, and still wet. Who leaves this behind?',ar:'حبر. أسود وما يزال رطباً. من يترك هذا خلفه؟'}},
-  {id:'b_tap',kind:'switch',off:[1,1],en:'Close the tap',ar:'أغلق الصنبور',focus:'b_cistern',
+  {id:'b_tap',kind:'switch',off:[1,1],showIf:'b_cabinet',en:'Close the tap',ar:'أغلق الصنبور',focus:'b_cistern',
    mono:{en:'The pipes stop knocking. The cistern should open now.',ar:'توقفت الأنابيب عن الطَّرق. يجب أن يُفتح الخزان الآن.'}},
   {id:'b_cistern',kind:'container',off:[0,1],give:'pendant',reqFlag:'b_tap',en:'Open the cistern',ar:'افتح الخزان',
    locked:{en:'The lid will not budge. The water pressure holds it shut… the tap.',ar:'الغطاء لا يتحرك. ضغط الماء يُبقيه مغلقاً… الصنبور.'},
    mono:{en:'My pendant. The sphinx engraving is faint, almost gone.',ar:'قلادتي. نقش أبي الهول باهتٌ كاد يختفي.'}},
-  {id:'b_door',kind:'exit',off:[0,2],need:'inked_pendant',en:'Try the door',ar:'جرّب الباب',
+  {id:'b_door',kind:'exit',off:[0,2],need:'inked_pendant',reqFlag:'b_cistern',en:'Try the door',ar:'جرّب الباب',
    needMsg:{en:'Locked. The keyhole is carved with a sphinx, like my pendant — but the engraving is too faint. Ink might bring it back.',ar:'مقفل. ثقب المفتاح منقوش بأبي الهول كقلادتي، لكن النقش باهت. ربما يُعيده الحبر.'},
    mono:{en:'It fits.',ar:'إنها تناسبه.'}}],
  abandoned_warehouse:[
   {id:'w_crate',kind:'clue',off:[0,-1],photo:true,en:'Read the crate label',ar:'اقرأ ملصق الصندوق',
    note:{title:{en:'Shipping label',ar:'ملصق الشحن'},text:{en:'FRAGILE — HANDLE WITH CARE\n\nBreaker sequence: 7 · 3 · 1\nSigned: N.',ar:'قابل للكسر — تعامل بحذر\n\nتسلسل القواطع: 7 · 3 · 1\nالتوقيع: ن.'}},
    mono:{en:'"N." Nour? … A breaker sequence. The fuse box must be nearby.',ar:'«ن.» نور؟ … تسلسل قواطع. لا بد أن صندوق الفيوزات قريب.'}},
-  {id:'w_fuse',kind:'code',off:[1,0],code:'731',fx:'power',focus:'w_locker',en:'Open the fuse box',ar:'افتح صندوق الفيوزات',
+  {id:'w_fuse',kind:'code',off:[1,0],code:'731',showIf:'w_crate',fx:'power',focus:'w_locker',en:'Open the fuse box',ar:'افتح صندوق الفيوزات',
    wrong:{en:'Wrong sequence. The crate label had a breaker sequence.',ar:'تسلسل خاطئ. ملصق الصندوق كان يحمل تسلسل القواطع.'},
    mono:{en:'The lights hum back to life. Something shifts in the dark.',ar:'عادت الأضواء تُطنّ. شيءٌ ما يتحرك في العتمة.'}},
   {id:'w_locker',kind:'container',off:[-1,0],give:'batteries',reqFlag:'w_fuse',en:'Open the locker',ar:'افتح الخزانة',
@@ -46,7 +47,7 @@ export const PUZ:Record<string,Pz[]>={
    locked:{en:'A dead screen. The relay panel on the wall might feed it.',ar:'شاشة ميتة. لوحة المرحّل على الجدار ربما تغذيها.'},
    note:{title:{en:'Terminal log',ar:'سجل الشاشة'},text:{en:'LOG 14/08/15\n\nSubject moved to the crypt.\nLocker code: 0 · 8 · 1 · 5',ar:'سجل 14/08/15\n\nنُقلت إلى السرداب.\nرمز الخزانة: 0 · 8 · 1 · 5'}},
    mono:{en:'"Moved to the crypt." Moved… by whom?',ar:'«نُقلت إلى السرداب». نقلها… من؟'}},
-  {id:'k_locker',kind:'code',off:[-1,0],code:'0815',give:'keycard',en:'Open the locker',ar:'افتح الخزانة',
+  {id:'k_locker',kind:'code',off:[-1,0],code:'0815',give:'keycard',showIf:'k_term',en:'Open the locker',ar:'افتح الخزانة',
    wrong:{en:'Wrong. The log had a four-digit locker code.',ar:'خطأ. السجل كان فيه رمز خزانة من أربعة أرقام.'},
    mono:{en:'A keycard, "B-2" faded on it.',ar:'بطاقة دخول، «B-2» باهتة عليها.'}},
   {id:'k_door',kind:'exit',off:[0,2],need:'keycard',en:'Try the door',ar:'جرّب الباب',
@@ -59,7 +60,7 @@ export const PUZ:Record<string,Pz[]>={
    locked:{en:'Too dark to read the carving. I need light.',ar:'الظلام شديد لقراءة النقش. أحتاج إلى ضوء.'},
    note:{title:{en:'Inscription',ar:'النقش'},text:{en:'Where the Sphinx looks,\ncount the stars:\n\n5 · 2 · 9',ar:'حيث ينظر أبو الهول،\nعُدّ النجوم:\n\n5 · 2 · 9'}},
    mono:{en:'The same sphinx as on my pendant. Five, two, nine.',ar:'أبو الهول نفسه كما على قلادتي. خمسة، اثنان، تسعة.'}},
-  {id:'c_slab',kind:'code',off:[-1,0],code:'529',fx:'sting',focus:'c_tomb',en:'Turn the stone dial',ar:'أدر قرص الحجر',
+  {id:'c_slab',kind:'code',off:[-1,0],code:'529',showIf:'c_ins',fx:'sting',focus:'c_tomb',en:'Turn the stone dial',ar:'أدر قرص الحجر',
    wrong:{en:'Nothing. The inscription gave three numbers.',ar:'لا شيء. النقش أعطاني ثلاثة أرقام.'},
    mono:{en:'Stone grinds on stone. A recess opens, shaped like my pendant.',ar:'يحتكّ الحجر بالحجر. يتّسع تجويف على شكل قلادتي.'}},
   {id:'c_tomb',kind:'exit',off:[0,2],need:'inked_pendant',reqFlag:'c_slab',en:'Examine the tomb',ar:'افحص القبر',
@@ -117,7 +118,7 @@ export const nextHint=(scene:string,f:F,inv:string[]):T|null=>{
    if(!f.m_plaque)return H('A brass plaque by the wall. It may explain this place.','لوحة نحاسية عند الجدار. ربما تشرح هذا المكان.');
    if(!f.m_lever)return H('The plaque mentioned a lever.','اللوحة ذكرت رافعة.');
    return H('The great hall is open. Nour is waiting.','القاعة الكبرى مفتوحة. نور تنتظر.');
- }return null};
+ me}return null};
 
 export const ITEMS:Record<string,{en:string;ar:string;dEn:string;dAr:string;color:string;shape:string}>={
  ink:{en:'Ink',ar:'حبر',dEn:'A vial of black ink, still wet.',dAr:'قارورة حبر أسود لا يزال رطباً.',color:'#111',shape:'vial'},
